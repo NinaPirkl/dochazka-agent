@@ -362,7 +362,8 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const JIRA_BASE = 'https://packeta.atlassian.net';
+const JIRA_BASE = '';
+const JIRA_PROXY = '/jira';
 const PROJECTS  = ['OBS', 'TEST'];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
@@ -378,9 +379,9 @@ let state = {
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const hdr = () => ({
-  'Authorization': 'Basic ' + btoa(state.auth.email + ':' + state.auth.token),
-  'Content-Type':  'application/json',
-  'Accept':        'application/json',
+  'X-Jira-Auth': 'Basic ' + btoa(state.auth.email + ':' + state.auth.token),
+  'Content-Type': 'application/json',
+  'Accept':       'application/json',
 });
 
 function showStatus(elId, type, msg) {
@@ -617,7 +618,7 @@ $('btn-auth').addEventListener('click', async () => {
   $('auth-status').classList.add('hidden');
 
   try {
-    const resp = await fetch(`${JIRA_BASE}/rest/api/3/myself`, {
+    const resp = await fetch(`${JIRA_PROXY}/rest/api/3/myself`, {
       headers: { 'Authorization': 'Basic ' + btoa(email+':'+token), 'Accept': 'application/json' }
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -678,7 +679,7 @@ $('btn-fetch').addEventListener('click', async () => {
     const jql   = `project in (${PROJECTS.join(',')}) AND assignee = currentUser() AND updated >= "${start}" AND updated <= "${end}" ORDER BY updated ASC`;
 
     const resp = await fetch(
-      `${JIRA_BASE}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,issuetype,status,updated&maxResults=100`,
+      `${JIRA_PROXY}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,issuetype,status,updated&maxResults=100`,
       { headers: hdr() }
     );
     if (!resp.ok) throw new Error('Jira API: HTTP ' + resp.status);
@@ -701,7 +702,7 @@ $('btn-fetch').addEventListener('click', async () => {
     try {
       const firstIssue = state.issues[0]?.key;
       if (firstIssue) {
-        const wlResp = await fetch(`${JIRA_BASE}/rest/api/3/issue/${firstIssue}/worklog`, { headers: hdr() });
+        const wlResp = await fetch(`${JIRA_PROXY}/rest/api/3/issue/${firstIssue}/worklog`, { headers: hdr() });
         if (wlResp.ok) {
           const wlData = await wlResp.json();
           const monthStr = `${year}-${String(month).padStart(2,'0')}`;
@@ -866,6 +867,80 @@ $('btn-mock').addEventListener('click', () => {
   setStep(3);
 });
 
+
+
+// ── DRY RUN ───────────────────────────────────────────────────────────────────
+$('btn-dryrun').addEventListener('click', async () => {
+  setStep(4);
+  $('log-box').innerHTML = '';
+  $('result-status').innerHTML = '';
+  $('btn-again').classList.add('hidden');
+  $('btn-back3').classList.add('hidden');
+  $('progress-wrap').classList.remove('hidden');
+  $('progress-bar').style.width = '0%';
+  const total = state.entries.length;
+  showStatus('result-status','warning','🧪 DRY RUN — žádné záznamy se neodesílají do Jiry');
+  log('=== Dry Run — simulace odesílání ===', 'log-info');
+  for (let i = 0; i < state.entries.length; i++) {
+    const e = state.entries[i];
+    const dateStr = fmtDate(state.year, state.month, e.day);
+    await new Promise(r => setTimeout(r, 60));
+    log('✓  ' + dateStr + '  ' + e.key + '  ' + e.hours + 'h  [DRY RUN]', 'log-ok');
+    $('progress-bar').style.width = Math.round((i+1)/total*100) + '%';
+  }
+  log('\n=== Dry Run dokončen — ' + total + ' záznamů by bylo odesláno ===', 'log-info');
+  $('btn-again').classList.remove('hidden');
+  $('btn-back3').classList.remove('hidden');
+});
+
+// ── SEND TO CLOCKWORK ─────────────────────────────────────────────────────────
+$('btn-send').addEventListener('click', async () => {
+  setStep(4);
+  $('log-box').innerHTML = '';
+  $('result-status').innerHTML = '';
+  $('btn-again').classList.add('hidden');
+  $('btn-back3').classList.add('hidden');
+  const total = state.entries.length;
+  $('progress-wrap').classList.remove('hidden');
+  $('progress-bar').style.width = '0%';
+  showStatus('result-status','info','⏳ Odesílám worklogy do Jira Clockwork...');
+  log('Celkem záznamů: ' + total, 'log-dim');
+  let ok = 0, fail = 0;
+  for (let i = 0; i < state.entries.length; i++) {
+    const e = state.entries[i];
+    const dateStr = fmtDate(state.year, state.month, e.day);
+    const started = dateStr + 'T09:00:00.000+0200';
+    const seconds = Math.round(e.hours * 3600);
+    try {
+      const resp = await fetch(`${JIRA_PROXY}/rest/api/3/issue/${e.key}/worklog`, {
+        method: 'POST', headers: hdr(),
+        body: JSON.stringify({ started, timeSpentSeconds: seconds })
+      });
+      if (resp.status === 200 || resp.status === 201) {
+        log('✓  ' + dateStr + '  ' + e.key + '  ' + e.hours + 'h', 'log-ok');
+        ok++;
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        log('✗  ' + dateStr + '  ' + e.key + '  → ' + resp.status + ' ' + JSON.stringify(err.errorMessages || []), 'log-err');
+        fail++;
+      }
+    } catch(err) {
+      log('✗  ' + dateStr + '  ' + e.key + '  → ' + err.message, 'log-err');
+      fail++;
+    }
+    $('progress-bar').style.width = Math.round((i+1)/total*100) + '%';
+    await new Promise(r => setTimeout(r, 80));
+  }
+  if (fail === 0) {
+    showStatus('result-status','success','✓ Hotovo! ' + ok + ' worklogů úspěšně zalogovány.');
+    log('\nVšechno OK — ' + ok + '/' + total + ' ✓', 'log-ok');
+  } else {
+    showStatus('result-status','warning','⚠ Dokončeno s chybami: ' + ok + ' OK, ' + fail + ' selhalo.');
+    log('\nDokončeno: ' + ok + ' OK, ' + fail + ' selhalo', 'log-err');
+  }
+  $('btn-again').classList.remove('hidden');
+  $('btn-back3').classList.remove('hidden');
+});
 
 // ── BACK BUTTONS ──────────────────────────────────────────────────────────────
 $('btn-back1').addEventListener('click', () => setStep(1));

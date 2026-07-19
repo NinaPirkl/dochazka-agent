@@ -19,15 +19,6 @@ if %errorlevel% == 0 (
     )
 )
 
-:: Spust server na pozadi
-start "DochazkaSrv" "%PYTHON%" -m http.server 8080 2>nul
-
-:: Pockej sekundu aby se server nastartoval
-timeout /t 1 /nobreak >nul
-
-:: Otevri prohlizec
-start "" "http://localhost:8080/dochazka_agent.html"
-
-echo Agent bezi na http://localhost:8080/dochazka_agent.html
-echo Zavri toto okno az skoncis s praci.
+:: Spust proxy server
+"%PYTHON%" server.py
 pause
