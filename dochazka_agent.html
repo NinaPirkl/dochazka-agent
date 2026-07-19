@@ -572,9 +572,14 @@ function fmtDate(year, month, day) {
 }
 
 function taskOptions(selectedKey) {
-  return state.issues.map(i =>
+  let opts = state.issues.map(i =>
     `<option value="${i.key}" ${i.key===selectedKey?'selected':''}>${i.key}</option>`
-  ).join('');
+  );
+  // Pokud vybraný task není v seznamu (např. z Claude kontextu), přidej ho
+  if (selectedKey && !state.issues.some(i => i.key === selectedKey)) {
+    opts.unshift(`<option value="${selectedKey}" selected>${selectedKey}</option>`);
+  }
+  return opts.join('');
 }
 
 function renderPreview() {
