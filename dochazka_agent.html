@@ -372,7 +372,8 @@ const PROJECTS  = ['OBS', 'TEST'];
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let state = {
   auth: null,
-  loggedDays: new Set(),       // { email, token, displayName }
+  loggedDays: new Set(),
+  sending: false,       // { email, token, displayName }
   year: null, month: null,
   daysOff: [],
   extraHours: {},   // day -> hours
@@ -604,6 +605,20 @@ function renderPreview() {
   });
   $('total-h').textContent = total + 'h';
 
+  // Zvýrazni dny kde součet neodpovídá standardu/přesčasu
+  const stdH = +$('std-hours').value || 8;
+  const dayTotals = {};
+  state.entries.forEach(e => { dayTotals[e.day] = (dayTotals[e.day] || 0) + (+e.hours || 0); });
+  tbody.querySelectorAll('tr').forEach((tr, i) => {
+    const day = state.entries[i]?.day;
+    if (!day) return;
+    const expected = state.extraHours[day] ?? stdH;
+    if (Math.abs((dayTotals[day] || 0) - expected) > 0.01) {
+      tr.style.background = 'rgba(230, 51, 41, 0.06)';
+      tr.title = `Součet za ${day}. den: ${dayTotals[day]}h (očekáváno ${expected}h)`;
+    }
+  });
+
   // chips per task
   const chips = $('task-chips');
   chips.innerHTML = '';
@@ -620,7 +635,10 @@ function renderPreview() {
   tbody.querySelectorAll('.hours-edit').forEach(input => {
     input.addEventListener('change', () => {
       const idx = +input.dataset.idx;
-      state.entries[idx].hours = +input.value || 8;
+      let h = parseFloat(String(input.value).replace(',', '.'));
+      if (isNaN(h) || h <= 0) h = 8;
+      if (h > 24) h = 24;
+      state.entries[idx].hours = h;
       renderPreview();
     });
   });
@@ -642,8 +660,12 @@ function renderPreview() {
 }
 
 function addEntryRow() {
-  const day = parseInt(prompt('Den v měsíci (např. 20):'));
-  if (!day || day < 1 || day > 31) return;
+  const raw = prompt('Den v měsíci (např. 20):');
+  if (raw === null) return;
+  if (!/^\d{1,2}$/.test(raw.trim())) { alert('Zadej číslo dne 1–31.'); return; }
+  const day = parseInt(raw);
+  const maxDay = new Date(state.year, state.month, 0).getDate();
+  if (day < 1 || day > maxDay) { alert(`Den musí být 1–${maxDay}.`); return; }
   const defaultIssue = state.issues[0];
   state.entries.push({
     day,
@@ -716,8 +738,9 @@ $('btn-auth').addEventListener('click', async () => {
 
 // ── STEP 2: SETTINGS + FETCH ──────────────────────────────────────────────────
 makeTagInput('daysoff-wrap','daysoff-input', val => {
+  if (!/^\d{1,2}$/.test(val.trim())) { alert('Zadej číslo dne 1–31.'); return; }
   const d = parseInt(val);
-  if (!d || d < 1 || d > 31) return;
+  if (!d || d < 1 || d > 31) { alert('Den musí být 1–31.'); return; }
   if (!state.daysOff.includes(d)) {
     state.daysOff.push(d);
     addTag('daysoff-wrap','daysoff-input', d, v => { state.daysOff = state.daysOff.filter(x => x !== parseInt(v)); });
@@ -725,10 +748,12 @@ makeTagInput('daysoff-wrap','daysoff-input', val => {
 });
 
 makeTagInput('extra-wrap','extra-input', val => {
-  const m = val.match(/^(\d+)=(\d+\.?\d*)$/);
-  if (!m) return;
-  const [, day, h] = m;
-  state.extraHours[+day] = +h;
+  const m = val.trim().match(/^(\d{1,2})=(\d{1,2}(?:\.\d)?)$/);
+  if (!m) { alert('Formát: den=hodiny, např. 22=10'); return; }
+  const day = +m[1], h = +m[2];
+  if (day < 1 || day > 31) { alert('Den musí být 1–31.'); return; }
+  if (h <= 0 || h > 24) { alert('Hodiny musí být 0.5–24.'); return; }
+  state.extraHours[day] = h;
   addTag('extra-wrap','extra-input', val, v => {
     const d = parseInt(v.split('=')[0]);
     delete state.extraHours[d];
@@ -807,6 +832,7 @@ $('btn-fetch').addEventListener('click', async () => {
           const issueMap = {};
           state.issues.forEach(i => { issueMap[i.key] = i.summary; });
           if (ctx.entries && ctx.entries.length) {
+            const dropped = ctx.entries.filter(e => !days.includes(e.day) || state.loggedDays.has(e.day));
             state.entries = ctx.entries
               .filter(e => days.includes(e.day) && !state.loggedDays.has(e.day))
               .map(e => ({
@@ -815,7 +841,12 @@ $('btn-fetch').addEventListener('click', async () => {
                 summary: issueMap[e.key] || e.key,
                 hours: e.hours,
               }));
-            showStatus('ai-status', 'success', '✓ Použit kontext z Clauda — ' + state.entries.length + ' záznamů.');
+            let msg = '✓ Použit kontext z Clauda — ' + state.entries.length + ' záznamů.';
+            if (dropped.length) {
+              const droppedDays = [...new Set(dropped.map(e => e.day))].sort((a,b)=>a-b).join(', ');
+              msg += ' ⚠ Vynechány dny ' + droppedDays + ' (víkend, svátek nebo už zalogováno).';
+            }
+            showStatus('ai-status', dropped.length ? 'warning' : 'success', msg);
           } else {
             throw new Error('Neplatný formát');
           }
@@ -977,6 +1008,17 @@ $('btn-dryrun').addEventListener('click', async () => {
 
 // ── SEND TO CLOCKWORK ─────────────────────────────────────────────────────────
 $('btn-send').addEventListener('click', async () => {
+  if (state.sending) return;
+
+  // ── Validace před odesláním ──
+  const problems = validateEntries();
+  if (problems.length) {
+    alert('Nelze odeslat:\n\n' + problems.join('\n'));
+    return;
+  }
+
+  state.sending = true;
+  $('btn-send').disabled = true;
   setStep(4);
   $('log-box').innerHTML = '';
   $('result-status').innerHTML = '';
@@ -1023,6 +1065,45 @@ $('btn-send').addEventListener('click', async () => {
   $('btn-again').classList.remove('hidden');
   $('btn-back3').classList.remove('hidden');
 });
+
+
+// ── VALIDACE ──────────────────────────────────────────────────────────────────
+function validateEntries() {
+  const problems = [];
+  const stdH = +$('std-hours').value || 8;
+
+  if (!state.entries.length) {
+    problems.push('• Tabulka je prázdná — není co odeslat.');
+    return problems;
+  }
+
+  // 3: hodiny musí být číslo 0.5–24
+  state.entries.forEach(e => {
+    const h = +e.hours;
+    if (isNaN(h) || h <= 0 || h > 24) {
+      problems.push(`• ${e.day}. den, ${e.key}: neplatný počet hodin (${e.hours}).`);
+    }
+  });
+
+  // 7: klíč tasku musí mít správný formát PROJEKT-ČÍSLO
+  state.entries.forEach(e => {
+    if (!/^[A-Z][A-Z0-9]+-\d+$/.test(e.key)) {
+      problems.push(`• ${e.day}. den: neplatný klíč tasku "${e.key}".`);
+    }
+  });
+
+  // 4: součet hodin za den musí odpovídat standardu (nebo přesčasu pokud je zadán)
+  const dayTotals = {};
+  state.entries.forEach(e => { dayTotals[e.day] = (dayTotals[e.day] || 0) + (+e.hours || 0); });
+  Object.entries(dayTotals).forEach(([day, total]) => {
+    const expected = state.extraHours[+day] ?? stdH;
+    if (Math.abs(total - expected) > 0.01) {
+      problems.push(`• ${day}. den: součet ${total}h ≠ očekávaných ${expected}h${state.extraHours[+day] ? ' (přesčas)' : ''}.`);
+    }
+  });
+
+  return problems;
+}
 
 $('btn-addrow').addEventListener('click', addEntryRow);
 
