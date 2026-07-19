@@ -317,11 +317,14 @@
               <th>Task</th>
               <th>Popis</th>
               <th style="text-align:right">Hod.</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="preview-body"></tbody>
         </table>
       </div>
+
+      <button class="btn btn-ghost" id="btn-addrow" style="margin-top:0.5rem;font-size:0.8rem">+ Přidat záznam</button>
 
       <div class="total-row">
         <span>Celkem pracovních hodin</span>
@@ -568,7 +571,15 @@ function fmtDate(year, month, day) {
   return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 }
 
+function taskOptions(selectedKey) {
+  return state.issues.map(i =>
+    `<option value="${i.key}" ${i.key===selectedKey?'selected':''}>${i.key}</option>`
+  ).join('');
+}
+
 function renderPreview() {
+  // sort entries by day
+  state.entries.sort((a,b) => a.day - b.day);
   const tbody = $('preview-body');
   tbody.innerHTML = '';
   let total = 0;
@@ -578,9 +589,10 @@ function renderPreview() {
       .toLocaleDateString('cs-CZ', {weekday:'short', day:'2-digit', month:'2-digit'});
     tr.innerHTML = `
       <td class="date">${dateStr}</td>
-      <td class="key">${e.key}</td>
+      <td><select class="task-edit" data-idx="${idx}" style="border:1px solid var(--border);border-radius:4px;padding:0.25rem;font-family:monospace;font-size:0.8rem;font-weight:700;color:var(--red);background:var(--white)">${taskOptions(e.key)}</select></td>
       <td class="summary" title="${e.summary}">${e.summary}</td>
       <td class="hours"><input class="hours-edit" data-idx="${idx}" value="${e.hours}" min="0.5" max="24" step="0.5"></td>
+      <td><button class="row-del" data-idx="${idx}" title="Smazat záznam" style="border:none;background:none;color:var(--gray);cursor:pointer;font-size:1rem;padding:0.2rem 0.5rem">×</button></td>
     `;
     tbody.appendChild(tr);
     total += e.hours;
@@ -599,7 +611,7 @@ function renderPreview() {
     chips.appendChild(chip);
   });
 
-  // inline edit listener
+  // listeners
   tbody.querySelectorAll('.hours-edit').forEach(input => {
     input.addEventListener('change', () => {
       const idx = +input.dataset.idx;
@@ -607,6 +619,34 @@ function renderPreview() {
       renderPreview();
     });
   });
+  tbody.querySelectorAll('.task-edit').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const idx = +sel.dataset.idx;
+      const iss = state.issues.find(i => i.key === sel.value);
+      state.entries[idx].key = sel.value;
+      state.entries[idx].summary = iss ? iss.summary : sel.value;
+      renderPreview();
+    });
+  });
+  tbody.querySelectorAll('.row-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.entries.splice(+btn.dataset.idx, 1);
+      renderPreview();
+    });
+  });
+}
+
+function addEntryRow() {
+  const day = parseInt(prompt('Den v měsíci (např. 20):'));
+  if (!day || day < 1 || day > 31) return;
+  const defaultIssue = state.issues[0];
+  state.entries.push({
+    day,
+    key: defaultIssue ? defaultIssue.key : 'OBS-',
+    summary: defaultIssue ? defaultIssue.summary : '',
+    hours: 8,
+  });
+  renderPreview();
 }
 
 // ── TAG INPUT ─────────────────────────────────────────────────────────────────
@@ -978,6 +1018,8 @@ $('btn-send').addEventListener('click', async () => {
   $('btn-again').classList.remove('hidden');
   $('btn-back3').classList.remove('hidden');
 });
+
+$('btn-addrow').addEventListener('click', addEntryRow);
 
 // ── BACK BUTTONS ──────────────────────────────────────────────────────────────
 $('btn-back1').addEventListener('click', () => setStep(1));
