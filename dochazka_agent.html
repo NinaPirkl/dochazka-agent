@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docházka Agent — ORBIS</title>
+<style>
+  :root {
+    --red:    #E63329;
+    --dark:   #111111;
+    --gray:   #666666;
+    --lgray:  #F4F4F4;
+    --border: #E0E0E0;
+    --green:  #27AE60;
+    --white:  #FFFFFF;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #F7F7F7;
+    color: var(--dark);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 56px;
+  }
+  .logo-bar { width: 4px; height: 28px; background: var(--red); border-radius: 2px; flex-shrink: 0; }
+  header h1 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  header span { font-size: 0.85rem; color: var(--gray); margin-left: auto; }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* ── STEPS ── */
+  .steps { display: flex; gap: 0; margin-bottom: 2.5rem; }
+  .step {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.8rem; font-weight: 500; color: var(--gray);
+    padding: 0.5rem 1rem 0.5rem 0;
+  }
+  .step .num {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 700; flex-shrink: 0;
+  }
+  .step.active { color: var(--dark); }
+  .step.active .num { border-color: var(--red); background: var(--red); color: var(--white); }
+  .step.done .num { border-color: var(--green); background: var(--green); color: var(--white); }
+  .step.done { color: var(--gray); }
+  .step-sep { flex: 1; height: 1px; background: var(--border); margin: 0 0.25rem; align-self: center; min-width: 20px; }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.25rem;
+  }
+  .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.5rem; }
+  .card-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+
+  /* ── FORM ── */
+  .field { margin-bottom: 1.1rem; }
+  label { display: block; font-size: 0.82rem; font-weight: 600; color: #444; margin-bottom: 0.35rem; }
+  label .hint { font-weight: 400; color: var(--gray); font-size: 0.78rem; margin-left: 0.4rem; }
+  input[type=text], input[type=password], input[type=month], select {
+    width: 100%; padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 0.9rem; font-family: inherit;
+    background: var(--white); color: var(--dark);
+    transition: border-color 0.15s;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: var(--red); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+  /* ── TAG INPUT ── */
+  .tag-wrap {
+    display: flex; flex-wrap: wrap; gap: 0.35rem;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.45rem 0.6rem; min-height: 42px;
+    background: var(--white); cursor: text; transition: border-color 0.15s;
+  }
+  .tag-wrap:focus-within { border-color: var(--red); }
+  .tag {
+    background: #FEE8E7; color: var(--red);
+    border-radius: 4px; padding: 0.15rem 0.5rem;
+    font-size: 0.8rem; font-weight: 600;
+    display: flex; align-items: center; gap: 0.3rem;
+  }
+  .tag button { background: none; border: none; cursor: pointer; color: var(--red); font-size: 0.9rem; line-height: 1; padding: 0; }
+  .tag-input {
+    border: none; outline: none; font-size: 0.88rem;
+    font-family: inherit; background: transparent;
+    min-width: 80px; flex: 1;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.65rem 1.4rem; border-radius: 6px;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    border: none; transition: all 0.15s; font-family: inherit;
+  }
+  .btn-primary { background: var(--red); color: var(--white); }
+  .btn-primary:hover:not(:disabled) { background: #c9291f; }
+  .btn-secondary { background: var(--lgray); color: var(--dark); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #EBEBEB; }
+  .btn-ghost { background: transparent; color: var(--gray); border: 1px solid var(--border); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 0.75rem; margin-top: 1.5rem; align-items: center; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin-top: 0.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--gray); padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--border); white-space: nowrap; }
+  td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFAFA; }
+
+  td.key { font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: 700; color: var(--red); white-space: nowrap; }
+  td.date { white-space: nowrap; color: var(--gray); font-size: 0.8rem; }
+  td.hours { font-weight: 700; text-align: right; }
+  td.summary { color: #333; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* edit hours inline */
+  td input.hours-edit {
+    width: 52px; text-align: right; padding: 0.2rem 0.4rem;
+    font-size: 0.85rem; font-weight: 700; border: 1px solid var(--red);
+    border-radius: 4px; outline: none;
+  }
+
+  /* ── STATUS / LOG ── */
+  .status-bar {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.75rem 1rem; border-radius: 7px;
+    font-size: 0.85rem; margin-bottom: 1rem;
+  }
+  .status-bar.info { background: #EEF4FF; color: #2563EB; border: 1px solid #BFDBFE; }
+  .status-bar.success { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
+  .status-bar.error { background: #FEF2F2; color: var(--red); border: 1px solid #FECACA; }
+  .status-bar.warning { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
+
+  .log-box {
+    background: #0D1117; color: #C9D1D9;
+    border-radius: 8px; padding: 1rem 1.25rem;
+    font-family: 'Courier New', monospace; font-size: 0.8rem;
+    max-height: 240px; overflow-y: auto; line-height: 1.7;
+  }
+  .log-ok  { color: #4EC94E; }
+  .log-err { color: #FF6B6B; }
+  .log-info{ color: #9CDCFE; }
+  .log-dim { color: #666; }
+
+  /* ── SUMMARY CHIPS ── */
+  .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+  .chip {
+    background: var(--lgray); border-radius: 20px;
+    padding: 0.3rem 0.85rem; font-size: 0.8rem; font-weight: 600;
+  }
+  .chip .ch-key { color: var(--red); }
+  .chip .ch-h   { color: var(--dark); }
+
+  /* ── TOTAL ROW ── */
+  .total-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 0.75rem; background: var(--lgray); border-radius: 6px;
+    margin-top: 0.75rem; font-weight: 700;
+  }
+  .total-row .total-h { font-size: 1.15rem; color: var(--red); }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  .spinner.dark { border-color: rgba(0,0,0,0.15); border-top-color: var(--red); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── HIDDEN ── */
+  .hidden { display: none !important; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-wrap { background: var(--lgray); border-radius: 4px; height: 6px; margin: 0.5rem 0; overflow: hidden; }
+  .progress-bar  { height: 100%; background: var(--red); border-radius: 4px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-bar"></div>
+  <h1>Docházka Agent</h1>
+  
+</header>
+
+<div class="container">
+
+  <!-- STEPS -->
+  <div class="steps">
+    <div class="step active" id="step1-ind"><div class="num">1</div> Přihlášení</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step2-ind"><div class="num">2</div> Nastavení</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step3-ind"><div class="num">3</div> Návrh</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step4-ind"><div class="num">4</div> Odeslání</div>
+  </div>
+
+  <!-- STEP 1: Auth -->
+  <div id="pane1">
+    <div class="card">
+      <div class="card-title"><div class="dot"></div>Připojení k Jiře</div>
+      <div class="field">
+        <label>E-mail <span class="hint">tvůj Jira účet</span></label>
+        <input type="text" id="email" value="nina.pirkl@packeta.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Jira API Token <span class="hint">z id.atlassian.com → Security → API tokens</span></label>
+        <input type="password" id="token" placeholder="ATATT3x..." autocomplete="off">
+      </div>
+
+      <div id="auth-status" class="hidden"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-auth">
+          <span id="auth-spinner" class="spinner hidden"></span>
+          Ověřit přihlášení
+        </button>
+      </div>
+      <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+        <button class="btn btn-ghost" id="btn-mock" style="font-size:0.8rem">🧪 Načíst mock data (bez Jiry)</button>
+        <span style="font-size:0.75rem;color:var(--gray);margin-left:0.75rem">pro testování bez tokenu</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Settings -->
+  <div id="pane2" class="hidden">
+    <div class="card">
+      <div class="card-title"><div class="dot"></div>Nastavení měsíce</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Měsíc a rok</label>
+          <div style="display:flex;gap:0.5rem">
+            <select id="sel-month" style="flex:1">
+              <option value="1">Leden</option><option value="2">Únor</option>
+              <option value="3">Březen</option><option value="4">Duben</option>
+              <option value="5">Květen</option><option value="6">Červen</option>
+              <option value="7">Červenec</option><option value="8">Srpen</option>
+              <option value="9">Září</option><option value="10">Říjen</option>
+              <option value="11">Listopad</option><option value="12">Prosinec</option>
+            </select>
+            <select id="sel-year" style="width:100px"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Standardní délka dne<span class="hint">hodin</span></label>
+          <select id="std-hours">
+            <option value="8" selected>8 hodin</option>
+            <option value="7.5">7.5 hodin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Dny nepřítomnosti <span class="hint">napiš čísla dnů, Enter pro přidání</span></label>
+        <div class="tag-wrap" id="daysoff-wrap">
+          <input type="text" class="tag-input" id="daysoff-input" placeholder="např. 15 Enter, 16 Enter...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Přesčasy <span class="hint">den=hodiny, Enter pro přidání — např. 22=10</span></label>
+        <div class="tag-wrap" id="extra-wrap">
+          <input type="text" class="tag-input" id="extra-input" placeholder="např. 22=10 Enter, 23=10 Enter...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Kontext z Clauda <span class="hint">nepovinné — vlož JSON z chatu pro přesnější rozvrh</span></label>
+        <textarea id="claude-context" rows="3" style="width:100%;padding:0.6rem 0.85rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;font-family:monospace;resize:vertical;outline:none;transition:border-color 0.15s" placeholder='{"entries":[{"day":1,"key":"OBS-859","hours":6},{"day":1,"key":"OBS-888","hours":2}]}'></textarea>
+        <div style="font-size:0.75rem;color:var(--gray);margin-top:0.3rem">Požádej Clauda v chatu: <em>"připrav kontext za [měsíc] pro agenta"</em></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-back1">← Zpět</button>
+        <button class="btn btn-primary" id="btn-fetch">
+          <span id="fetch-spinner" class="spinner hidden"></span>
+          Načíst &amp; analyzovat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Preview -->
+  <div id="pane3" class="hidden">
+    <div class="card">
+      <div class="card-title"><div class="dot"></div>Návrh přiřazení</div>
+
+      <div id="ai-status" class="hidden"></div>
+      <div id="preview-status" class="hidden"></div>
+
+      <div class="table-wrap">
+        <table id="preview-table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Task</th>
+              <th>Popis</th>
+              <th style="text-align:right">Hod.</th>
+            </tr>
+          </thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+      </div>
+
+      <div class="total-row">
+        <span>Celkem pracovních hodin</span>
+        <span class="total-h" id="total-h">0h</span>
+      </div>
+
+      <div class="chips" id="task-chips"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-reset">← Zpět</button>
+        <button class="btn btn-primary" id="btn-send">
+          <span id="send-spinner" class="spinner hidden"></span>
+          Odeslat do Clockwork
+        </button>
+        <button class="btn btn-ghost" id="btn-dryrun">🧪 Dry Run</button>
+        <button class="btn btn-secondary" id="btn-csv">Stáhnout CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: Result -->
+  <div id="pane4" class="hidden">
+    <div class="card">
+      <div class="card-title"><div class="dot"></div>Výsledek</div>
+      <div id="result-status"></div>
+      <div class="progress-wrap hidden" id="progress-wrap">
+        <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+      </div>
+      <div class="log-box" id="log-box"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary hidden" id="btn-back3">← Zpět na návrh</button>
+        <button class="btn btn-primary hidden" id="btn-again">Nový měsíc</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const JIRA_BASE = 'https://packeta.atlassian.net';
+const PROJECTS  = ['OBS', 'TEST'];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let state = {
+  auth: null,       // { email, token, displayName }
+  year: null, month: null,
+  daysOff: [],
+  extraHours: {},   // day -> hours
+  issues: [],       // [{key, summary}]
+  entries: [],      // [{date, key, summary, hours}]
+};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const hdr = () => ({
+  'Authorization': 'Basic ' + btoa(state.auth.email + ':' + state.auth.token),
+  'Content-Type':  'application/json',
+  'Accept':        'application/json',
+});
+
+function showStatus(elId, type, msg) {
+  const el = $(elId);
+  el.className = 'status-bar ' + type;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const ind = $('step'+i+'-ind');
+    if (!ind) return;
+    ind.className = 'step' + (i === n ? ' active' : i < n ? ' done' : '');
+  });
+  [1,2,3,4].forEach(i => {
+    const p = $('pane'+i);
+    if (p) p.classList.toggle('hidden', i !== n);
+  });
+}
+
+function log(msg, cls='') {
+  const box = $('log-box');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function workingDays(year, month, daysOff) {
+  const days = [];
+  const daysInMonth = new Date(year, month, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(year, month-1, d);
+    if (dt.getDay() === 0 || dt.getDay() === 6) continue;
+    if (daysOff.includes(d)) continue;
+    days.push(d);
+  }
+  return days;
+}
+
+// ── SMART TASK CLASSIFIER ────────────────────────────────────────────────────
+function classifyTask(issue) {
+  const type = (issue.type || '').toLowerCase();
+  const summary = (issue.summary || '').toLowerCase();
+  const key = (issue.key || '').toLowerCase();
+
+  if (type === 'bug' || summary.startsWith('[bug]')) return 'bug';
+  if (type.includes('test execution') || summary.includes('test execution') || summary.includes('executing')) return 'execution';
+  if (type === 'epic') return 'epic';
+  if (key.startsWith('itops-')) return 'blocker';
+  if (summary.includes('[security]') || summary.includes('blocker')) return 'blocker';
+  return 'story';
+}
+
+function taskHours(issue, stdH) {
+  switch(classifyTask(issue)) {
+    case 'bug':      return 2;
+    case 'blocker':  return 3;
+    case 'execution': return stdH;  // full day
+    case 'epic':     return stdH;   // spreads across days
+    case 'story':    return stdH;
+    default:         return stdH;
+  }
+}
+
+function assignTasks(issues, days, extraHours, stdH) {
+  if (!issues.length || !days.length) return [];
+
+  // Separate bugs/blockers (short) from main tasks (long)
+  const shortTasks = issues.filter(i => ['bug','blocker'].includes(classifyTask(i)));
+  const longTasks  = issues.filter(i => !['bug','blocker'].includes(classifyTask(i)));
+
+  // Distribute long tasks across days first
+  const dayMap = {}; // day -> [{key, summary, hours}]
+  days.forEach(d => { dayMap[d] = []; });
+
+  // Spread long tasks evenly
+  if (longTasks.length) {
+    const daysPerTask = Math.max(1, Math.floor(days.length / longTasks.length));
+    let di = 0;
+    longTasks.forEach((iss, ti) => {
+      const chunk = ti === longTasks.length - 1 ? days.slice(di) : days.slice(di, di + daysPerTask);
+      di += daysPerTask;
+      chunk.forEach(d => {
+        dayMap[d].push({ key: iss.key, summary: iss.summary, hours: stdH });
+      });
+    });
+  }
+
+  // Sprinkle short tasks (bugs/blockers) into days that have capacity
+  // Each bug takes 2-3h, so reduce the main task hours and add bug
+  let bugIdx = 0;
+  if (shortTasks.length) {
+    // Find days to inject bugs — roughly every N days
+    const step = Math.max(1, Math.floor(days.length / shortTasks.length));
+    days.forEach((d, idx) => {
+      if (bugIdx >= shortTasks.length) return;
+      if (idx % step !== 0) return;
+      const bug = shortTasks[bugIdx++];
+      const bugH = classifyTask(bug) === 'blocker' ? 3 : 2;
+      const dayH = extraHours[d] ?? stdH;
+
+      // Reduce existing tasks on this day to make room
+      const existing = dayMap[d];
+      if (existing.length > 0) {
+        const mainH = dayH - bugH;
+        if (mainH >= 2) {
+          existing[0].hours = mainH;
+          dayMap[d].push({ key: bug.key, summary: bug.summary, hours: bugH });
+        } else {
+          // Not enough room — put bug on next available day
+          const nextDay = days[idx + 1];
+          if (nextDay) {
+            const nextH = extraHours[nextDay] ?? stdH;
+            const nextExisting = dayMap[nextDay];
+            if (nextExisting.length > 0) {
+              nextExisting[0].hours = nextH - bugH;
+              dayMap[nextDay].push({ key: bug.key, summary: bug.summary, hours: bugH });
+            }
+          }
+        }
+      } else {
+        dayMap[d].push({ key: bug.key, summary: bug.summary, hours: bugH });
+      }
+    });
+  }
+
+  // Apply extra hours (overtime days) — adjust last task of day
+  days.forEach(d => {
+    if (!extraHours[d]) return;
+    const dayEntries = dayMap[d];
+    if (!dayEntries.length) return;
+    const currentTotal = dayEntries.reduce((s, e) => s + e.hours, 0);
+    const diff = extraHours[d] - currentTotal;
+    if (diff > 0) dayEntries[dayEntries.length - 1].hours += diff;
+    if (diff < 0) {
+      // reduce last entry
+      dayEntries[dayEntries.length - 1].hours = Math.max(1, dayEntries[dayEntries.length - 1].hours + diff);
+    }
+  });
+
+  // Flatten to entries array, skip empty days
+  const entries = [];
+  days.forEach(d => {
+    (dayMap[d] || []).forEach(e => {
+      if (e.hours > 0) entries.push({ day: d, key: e.key, summary: e.summary, hours: e.hours });
+    });
+  });
+
+  return entries;
+}
+
+function fmtDate(year, month, day) {
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function renderPreview() {
+  const tbody = $('preview-body');
+  tbody.innerHTML = '';
+  let total = 0;
+  state.entries.forEach((e, idx) => {
+    const tr = document.createElement('tr');
+    const dateStr = new Date(state.year, state.month-1, e.day)
+      .toLocaleDateString('cs-CZ', {weekday:'short', day:'2-digit', month:'2-digit'});
+    tr.innerHTML = `
+      <td class="date">${dateStr}</td>
+      <td class="key">${e.key}</td>
+      <td class="summary" title="${e.summary}">${e.summary}</td>
+      <td class="hours"><input class="hours-edit" data-idx="${idx}" value="${e.hours}" min="0.5" max="24" step="0.5"></td>
+    `;
+    tbody.appendChild(tr);
+    total += e.hours;
+  });
+  $('total-h').textContent = total + 'h';
+
+  // chips per task
+  const chips = $('task-chips');
+  chips.innerHTML = '';
+  const taskTotals = {};
+  state.entries.forEach(e => { taskTotals[e.key] = (taskTotals[e.key] || 0) + e.hours; });
+  Object.entries(taskTotals).forEach(([k, h]) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.innerHTML = `<span class="ch-key">${k}</span>&nbsp;<span class="ch-h">${h}h</span>`;
+    chips.appendChild(chip);
+  });
+
+  // inline edit listener
+  tbody.querySelectorAll('.hours-edit').forEach(input => {
+    input.addEventListener('change', () => {
+      const idx = +input.dataset.idx;
+      state.entries[idx].hours = +input.value || 8;
+      renderPreview();
+    });
+  });
+}
+
+// ── TAG INPUT ─────────────────────────────────────────────────────────────────
+function makeTagInput(wrapId, inputId, onAdd) {
+  const wrap = $(wrapId), inp = $(inputId);
+  wrap.addEventListener('click', () => inp.focus());
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = inp.value.trim();
+      if (val) { onAdd(val); inp.value = ''; }
+    }
+    if (e.key === 'Backspace' && !inp.value) {
+      const tags = wrap.querySelectorAll('.tag');
+      if (tags.length) tags[tags.length-1].remove();
+    }
+  });
+}
+
+function addTag(wrapId, inputId, label, onRemove) {
+  const wrap = $(wrapId), inp = $(inputId);
+  const tag = document.createElement('div');
+  tag.className = 'tag';
+  tag.innerHTML = `${label} <button type="button">×</button>`;
+  tag.querySelector('button').addEventListener('click', () => { tag.remove(); onRemove(label); });
+  wrap.insertBefore(tag, inp);
+}
+
+// ── STEP 1: AUTH ──────────────────────────────────────────────────────────────
+$('btn-auth').addEventListener('click', async () => {
+  const email = $('email').value.trim();
+  const token = $('token').value.trim();
+  if (!email || !token) { showStatus('auth-status','error','Zadej e-mail a token.'); return; }
+
+  $('auth-spinner').classList.remove('hidden');
+  $('btn-auth').disabled = true;
+  $('auth-status').classList.add('hidden');
+
+  try {
+    const resp = await fetch(`${JIRA_BASE}/rest/api/3/myself`, {
+      headers: { 'Authorization': 'Basic ' + btoa(email+':'+token), 'Accept': 'application/json' }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    state.auth = { email, token, displayName: data.displayName };
+    showStatus('auth-status','success', '✓ Přihlášen jako: ' + data.displayName);
+
+    // default month = previous month
+    const now = new Date();
+    const pm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    $('sel-year').value = pm.getFullYear();
+    $('sel-month').value = pm.getMonth()+1;
+
+    setTimeout(() => setStep(2), 700);
+  } catch(err) {
+    showStatus('auth-status','error','Přihlášení selhalo. Zkontroluj e-mail a token. (' + err.message + ')');
+  } finally {
+    $('auth-spinner').classList.add('hidden');
+    $('btn-auth').disabled = false;
+  }
+});
+
+// ── STEP 2: SETTINGS + FETCH ──────────────────────────────────────────────────
+makeTagInput('daysoff-wrap','daysoff-input', val => {
+  const d = parseInt(val);
+  if (!d || d < 1 || d > 31) return;
+  if (!state.daysOff.includes(d)) {
+    state.daysOff.push(d);
+    addTag('daysoff-wrap','daysoff-input', d, v => { state.daysOff = state.daysOff.filter(x => x !== parseInt(v)); });
+  }
+});
+
+makeTagInput('extra-wrap','extra-input', val => {
+  const m = val.match(/^(\d+)=(\d+\.?\d*)$/);
+  if (!m) return;
+  const [, day, h] = m;
+  state.extraHours[+day] = +h;
+  addTag('extra-wrap','extra-input', val, v => {
+    const d = parseInt(v.split('=')[0]);
+    delete state.extraHours[d];
+  });
+});
+
+$('btn-fetch').addEventListener('click', async () => {
+  const year = +$('sel-year').value;
+  const month = +$('sel-month').value;
+  if (!year || !month) { alert('Vyber měsíc a rok.'); return; }
+  state.year = year; state.month = month;
+
+  $('fetch-spinner').classList.remove('hidden');
+  $('btn-fetch').disabled = true;
+
+  try {
+    // ── 1. Fetch Jira issues ─────────────────────────────────────────────────
+    const lastDay = new Date(year, month, 0).getDate();
+    const start = `${year}-${String(month).padStart(2,'0')}-01`;
+    const end   = `${year}-${String(month).padStart(2,'0')}-${lastDay}`;
+    const jql   = `project in (${PROJECTS.join(',')}) AND assignee = currentUser() AND updated >= "${start}" AND updated <= "${end}" ORDER BY updated ASC`;
+
+    const resp = await fetch(
+      `${JIRA_BASE}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,issuetype,status,updated&maxResults=100`,
+      { headers: hdr() }
+    );
+    if (!resp.ok) throw new Error('Jira API: HTTP ' + resp.status);
+    const data = await resp.json();
+    state.issues = (data.issues || []).map(i => ({
+      key: i.key,
+      summary: i.fields.summary.slice(0,100),
+      updated: i.fields.updated?.slice(0,10) || '',
+      type: i.fields.issuetype?.name || '',
+      status: i.fields.status?.name || '',
+    }));
+
+    if (!state.issues.length) { alert('Žádné tasky nebyly nalezeny.'); return; }
+
+    const stdH = +$('std-hours').value;
+    const days = workingDays(year, month, state.daysOff);
+
+    // ── 2. Check for existing worklogs (duplicate protection) ────────────────
+    let existingCount = 0;
+    try {
+      const firstIssue = state.issues[0]?.key;
+      if (firstIssue) {
+        const wlResp = await fetch(`${JIRA_BASE}/rest/api/3/issue/${firstIssue}/worklog`, { headers: hdr() });
+        if (wlResp.ok) {
+          const wlData = await wlResp.json();
+          const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+          existingCount = (wlData.worklogs || []).filter(w => w.started?.startsWith(monthStr)).length;
+        }
+      }
+    } catch(e) { /* ignore */ }
+
+    if (existingCount > 0) {
+      const proceed = confirm(`⚠ Pozor: v Clockwork už existují záznamy pro tento měsíc (nalezeno ${existingCount} worklogů na ${state.issues[0]?.key}). Chceš pokračovat a přidat další?`);
+      if (!proceed) { $('fetch-spinner').classList.add('hidden'); $('btn-fetch').disabled = false; return; }
+    }
+
+    // ── 3. Build schedule ────────────────────────────────────────────────────
+    {
+      // Check if Claude context JSON was provided
+      const ctxRaw = $('claude-context').value.trim();
+      if (ctxRaw) {
+        try {
+          const ctx = JSON.parse(ctxRaw);
+          const issueMap = {};
+          state.issues.forEach(i => { issueMap[i.key] = i.summary; });
+          if (ctx.entries && ctx.entries.length) {
+            state.entries = ctx.entries
+              .filter(e => days.includes(e.day))
+              .map(e => ({
+                day: e.day,
+                key: e.key,
+                summary: issueMap[e.key] || e.key,
+                hours: e.hours,
+              }));
+            showStatus('ai-status', 'success', '✓ Použit kontext z Clauda — ' + state.entries.length + ' záznamů.');
+          } else {
+            throw new Error('Neplatný formát');
+          }
+        } catch(e) {
+          showStatus('ai-status', 'warning', '⚠ Nepodařilo se načíst kontext z Clauda, použit smart algoritmus.');
+          state.entries = assignTasks(state.issues, days, state.extraHours, stdH);
+        }
+      } else {
+        state.entries = assignTasks(state.issues, days, state.extraHours, stdH);
+      }
+      setStep(3);
+    }
+
+    renderPreview();
+  } catch(err) {
+    alert('Chyba: ' + err.message);
+  } finally {
+    $('fetch-spinner').classList.add('hidden');
+    $('btn-fetch').disabled = false;
+  }
+});
+
+// ── XLSX EXPORT ───────────────────────────────────────────────────────────────
+$('btn-csv').addEventListener('click', () => {
+  // Build CSV (xlsx-like, tab-separated), user opens in Excel
+  const { year, month, entries } = state;
+  if (!entries.length) return;
+
+  // Get all working days for header
+  const daysOff = state.daysOff;
+  const allDays = workingDays(year, month, []);
+  const workDays = allDays.filter(d => !daysOff.includes(d));
+
+  // Group by key
+  const taskMap = {};
+  const taskOrder = [];
+  entries.forEach(e => {
+    if (!taskMap[e.key]) { taskMap[e.key] = { summary: e.summary, days: {} }; taskOrder.push(e.key); }
+    taskMap[e.key].days[e.day] = (taskMap[e.key].days[e.day] || 0) + e.hours;
+  });
+
+  const headers = ['Level','Issues','Key','Total Time Spent',
+    ...workDays.map(d => `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`)
+  ];
+
+  const rows = [headers];
+  taskOrder.forEach(key => {
+    const tm = taskMap[key];
+    const total = Object.values(tm.days).reduce((a,b) => a+b, 0);
+    const row = ['0', tm.summary, key, `${String(total).padStart(2,'0')}:00`,
+      ...workDays.map(d => { const h = tm.days[d] || 0; return `${String(h).padStart(2,'0')}:00`; })
+    ];
+    rows.push(row);
+  });
+
+  // CSV for Zoho People
+  const zohoRows = [];
+  zohoRows.push(['Date','Client Name','Project Name','Job Name','Employee Id','Email ID','First name','Last name','Work Item','From time','To time','Timer Intervals','Hour(s)','Hours(HH:MM)','Billing Status','Approval Status','Note']);
+  taskOrder.forEach(key => {
+    const tm = taskMap[key];
+    Object.entries(tm.days).sort().forEach(([d, h]) => {
+      const dt = new Date(year, month-1, +d);
+      const dateStr = dt.toLocaleDateString('cs-CZ').replace(/\s/g,'').split('.').map((p,i) => i<2 ? p.padStart(2,'0') : p).reverse().join('/');
+      // dd/mm/yyyy
+      const day = String(d).padStart(2,'0');
+      const mon = String(month).padStart(2,'0');
+      const dateFormatted = day + '/' + mon + '/' + year;
+      zohoRows.push([
+        dateFormatted,
+        'Packeta Innovations',
+        'Packeta - přepis stávajícího logistického systému do nového',
+        'přepis stávajícího logistického systému do nového',
+        655,
+        'nina.pirkl@packeta.com',
+        'Nina','Pirkl','','','','',
+        h,
+        String(Math.floor(h)).padStart(2,'0') + ':00',
+        'Billable','Approved',
+        key + ' - ' + tm.summary
+      ]);
+    });
+  });
+  const csv = zohoRows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `timelogs_${year}-${String(month).padStart(2,'0')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ── NEW MONTH ─────────────────────────────────────────────────────────────────
+$('btn-again').addEventListener('click', () => {
+  state.entries = []; state.issues = [];
+  state.daysOff = []; state.extraHours = {};
+  $('daysoff-wrap').querySelectorAll('.tag').forEach(t => t.remove());
+  $('extra-wrap').querySelectorAll('.tag').forEach(t => t.remove());
+  $('log-box').innerHTML = '';
+  $('progress-wrap').classList.add('hidden');
+  $('progress-bar').style.width = '0%';
+  setStep(2);
+});
+
+
+// ── MOCK MODE ─────────────────────────────────────────────────────────────────
+$('btn-mock').addEventListener('click', () => {
+  state.auth = { email: 'nina.pirkl@packeta.com', token: 'MOCK', displayName: 'Nina Pirkl (mock)' };
+  state.issues = [
+    { key: 'OBS-250', summary: 'UM Prerequisites for LH — API Testing (epic)' },
+    { key: 'OBS-859', summary: 'QA – User Management: Integration Test Set' },
+    { key: 'OBS-858', summary: 'Phase 1 - Manual Sorting - UM - QA: Integration Testing' },
+    { key: 'OBS-444', summary: 'Phase 1 Manual Sorting UM — API testing & test structure cleanup' },
+    { key: 'OBS-736', summary: 'FE: Preparation for testing + integration testing support' },
+    { key: 'OBS-909', summary: '[BUG] Access requests — missing cancel/withdraw capability' },
+  ];
+
+  const now = new Date();
+  const pm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  state.year = pm.getFullYear();
+  state.month = pm.getMonth()+1;
+  $('sel-year').value = state.year;
+  $('sel-month').value = state.month;
+
+  const days = workingDays(state.year, state.month, []);
+  state.issues = state.issues.map(i => ({...i, type: i.key.startsWith('OBS-9') ? 'Bug' : i.key.startsWith('TEST-') ? 'Test Execution' : 'Story'}));
+  state.entries = assignTasks(state.issues, days, {}, 8);
+
+  showStatus('auth-status', 'warning', '🧪 Mock režim — data jsou simulovaná, nic se neodesílá do Jiry');
+  renderPreview();
+  setStep(3);
+});
+
+
+// ── BACK BUTTONS ──────────────────────────────────────────────────────────────
+$('btn-back1').addEventListener('click', () => setStep(1));
+$('btn-reset').addEventListener('click', () => {
+  state.entries = []; state.issues = [];
+  setStep(2);
+});
+$('btn-back3').addEventListener('click', () => {
+  $('btn-again').classList.add('hidden');
+  $('btn-back3').classList.add('hidden');
+  setStep(3);
+});
+
+// ── YEAR SELECT INIT ──────────────────────────────────────────────────────────
+(function() {
+  const selY = $('sel-year');
+  const now = new Date();
+  for (let y = now.getFullYear(); y >= now.getFullYear()-2; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    selY.appendChild(opt);
+  }
+  // default: previous month
+  const pm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  $('sel-year').value = pm.getFullYear();
+  $('sel-month').value = pm.getMonth()+1;
+})();
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+setStep(1);
+</script>
+</body>
+</html>
