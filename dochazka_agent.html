@@ -679,7 +679,7 @@ $('btn-fetch').addEventListener('click', async () => {
     const jql   = `project in (${PROJECTS.join(',')}) AND assignee = currentUser() AND updated >= "${start}" AND updated <= "${end}" ORDER BY updated ASC`;
 
     const resp = await fetch(
-      `${JIRA_PROXY}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=summary,issuetype,status,updated&maxResults=100`,
+      `${JIRA_PROXY}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,issuetype,status,updated&maxResults=100`,
       { headers: hdr() }
     );
     if (!resp.ok) throw new Error('Jira API: HTTP ' + resp.status);
