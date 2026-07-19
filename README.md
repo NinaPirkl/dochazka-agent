@@ -12,7 +12,29 @@ Automatické sestavení měsíčního výkazu z Jiry a odeslání do Jira Clockw
 
 ---
 
-## Jak začít
+## Jak spustit
+
+Windows:
+
+
+1. Stáhni repozitář jako ZIP → rozbal
+2. Dvojklik na spustit_agenta.bat
+3. Prohlížeč se otevře automaticky
+
+
+Mac / Linux:
+
+
+1. Stáhni repozitář jako ZIP → rozbal
+2. V Terminálu (jednorázově): chmod +x spustit_agenta.sh
+3. Spusť: ./spustit_agenta.sh
+
+
+
+> Python musí být nainstalovaný. Na Macu je předinstalovaný. Na Windows stáhni z python.org.
+
+
+## Použití
 
 1. Zadej Jira email + [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 2. Vyber měsíc, zadej volné dny a přesčasy
