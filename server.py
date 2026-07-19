@@ -78,28 +78,49 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             "Authorization": auth,
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": "DochazkaAgent/1.0",
         }
-        try:
-            req = urllib.request.Request(url, data=body, headers=headers, method=method)
-            with urllib.request.urlopen(req) as resp:
-                data = resp.read()
-                self.send_response(resp.status)
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+        # Zkus nejdřív přímé spojení (bez systémového proxy),
+        # pak se systémovým proxy — jeden z nich by měl fungovat
+        openers = [
+            urllib.request.build_opener(urllib.request.ProxyHandler({})),   # bez proxy
+            urllib.request.build_opener(),                                   # se systémovým proxy
+        ]
+
+        last_error = None
+        for opener in openers:
+            try:
+                with opener.open(req, timeout=30) as resp:
+                    data = resp.read()
+                    self.send_response(resp.status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+            except urllib.error.HTTPError as e:
+                # HTTP chyba (401, 404...) = spojení funguje, jen Jira vrátila chybu
+                data = e.read()
+                self.send_response(e.code)
                 self.send_header("Content-Type", "application/json")
                 self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(data)
-        except urllib.error.HTTPError as e:
-            data = e.read()
-            self.send_response(e.code)
-            self.send_header("Content-Type", "application/json")
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(data)
-        except Exception as e:
-            self.send_response(500)
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+                return
+            except Exception as e:
+                last_error = e
+                continue  # zkus další opener
+
+        # Oba openery selhaly
+        self.send_response(500)
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(json.dumps({
+            "error": str(last_error),
+            "hint": "Server se nemohl připojit k packeta.atlassian.net. Zkontroluj internet/VPN/firewall."
+        }).encode())
 
 
 def open_browser():
