@@ -8,24 +8,7 @@ Automatické sestavení měsíčního výkazu z Jiry a odeslání do Jira Clockw
 
 ## Architektura
 
-```
-VSTUP                    ZPRACOVÁNÍ              VÝSTUP
-─────────────────────    ────────────────────    ──────────────────────
-
-┌─ Jira API ──────────┐                          ┌─────────────────────┐
-│  tasky za měsíc     │──┐                    ┌─▶│  Jira Clockwork     │
-│  issuetype:         │  │  ┌──────────────┐  │  │  worklogy přes API  │
-│  · Bug    → 2-3h    │  ├─▶│    Agent     │──┤  └─────────────────────┘
-│  · Exec.  → celý den│  │  │ classifyTask │  │  ┌─────────────────────┐
-│  · Story  → více dní│  │  │ assignTasks  │──┼─▶│  Návrh rozvrhu      │
-└─────────────────────┘  │  └──────────────┘  │  │  editovatelná tab.  │
-                         │                    │  └─────────────────────┘
-┌─────────────────────┐  │                    │  ┌─────────────────────┐
-│  Claude kontext     │──┘ (přepíše           └─▶│  CSV export         │
-│  JSON z chatu       │    klasifikaci)           │  pro možnost importu│
-│  [volitelné]        │                           └─────────────────────┘
-└─────────────────────┘
-```
+<img width="2720" height="2040" alt="dochazka_agent_architecture_pro" src="https://github.com/user-attachments/assets/229b3db0-190c-41c8-ad87-c829eb439689" />
 
 ---
 
