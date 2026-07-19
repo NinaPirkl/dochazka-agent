@@ -368,7 +368,8 @@ const PROJECTS  = ['OBS', 'TEST'];
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let state = {
-  auth: null,       // { email, token, displayName }
+  auth: null,
+  loggedDays: new Set(),       // { email, token, displayName }
   year: null, month: null,
   daysOff: [],
   extraHours: {},   // day -> hours
@@ -412,13 +413,40 @@ function log(msg, cls='') {
   box.scrollTop = box.scrollHeight;
 }
 
+// České státní svátky (pevné datum). Velikonoce se počítají zvlášť.
+function czechHolidays(year, month) {
+  const fixed = {
+    1:  [1],        // Nový rok
+    5:  [1, 8],     // Svátek práce, Den vítězství
+    7:  [5, 6],     // Cyril a Metoděj, Jan Hus
+    9:  [28],       // Den české státnosti
+    10: [28],       // Vznik ČSR
+    11: [17],       // Boj za svobodu
+    12: [24, 25, 26], // Vánoce
+  };
+  const days = [...(fixed[month] || [])];
+  // Velikonoční pátek + pondělí (Meeus/Jones/Butcher algoritmus)
+  const a=year%19, b=Math.floor(year/100), c=year%100, d=Math.floor(b/4), e=b%4,
+        f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30,
+        i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451);
+  const emonth=Math.floor((h+l-7*m+114)/31), eday=((h+l-7*m+114)%31)+1;
+  const easterSunday = new Date(year, emonth-1, eday);
+  const goodFriday = new Date(easterSunday); goodFriday.setDate(eday-2);
+  const easterMonday = new Date(easterSunday); easterMonday.setDate(eday+1);
+  if (goodFriday.getMonth()+1 === month) days.push(goodFriday.getDate());
+  if (easterMonday.getMonth()+1 === month) days.push(easterMonday.getDate());
+  return days;
+}
+
 function workingDays(year, month, daysOff) {
   const days = [];
   const daysInMonth = new Date(year, month, 0).getDate();
+  const holidays = czechHolidays(year, month);
   for (let d = 1; d <= daysInMonth; d++) {
     const dt = new Date(year, month-1, d);
     if (dt.getDay() === 0 || dt.getDay() === 6) continue;
     if (daysOff.includes(d)) continue;
+    if (holidays.includes(d)) continue;
     days.push(d);
   }
   return days;
@@ -697,22 +725,30 @@ $('btn-fetch').addEventListener('click', async () => {
     const stdH = +$('std-hours').value;
     const days = workingDays(year, month, state.daysOff);
 
-    // ── 2. Check for existing worklogs (duplicate protection) ────────────────
-    let existingCount = 0;
+    // ── 2. Duplicate protection: zjisti které dny už mají worklogy ───────────
+    state.loggedDays = new Set();
+    const monthStr = `${year}-${String(month).padStart(2,'0')}`;
     try {
-      const firstIssue = state.issues[0]?.key;
-      if (firstIssue) {
-        const wlResp = await fetch(`${JIRA_PROXY}/rest/api/3/issue/${firstIssue}/worklog`, { headers: hdr() });
-        if (wlResp.ok) {
+      // Zkontroluj worklogy na všech taskách (paralelně, max 20)
+      const checks = state.issues.slice(0, 20).map(async iss => {
+        try {
+          const wlResp = await fetch(`${JIRA_PROXY}/rest/api/3/issue/${iss.key}/worklog`, { headers: hdr() });
+          if (!wlResp.ok) return;
           const wlData = await wlResp.json();
-          const monthStr = `${year}-${String(month).padStart(2,'0')}`;
-          existingCount = (wlData.worklogs || []).filter(w => w.started?.startsWith(monthStr)).length;
-        }
-      }
+          (wlData.worklogs || []).forEach(w => {
+            if (w.started?.startsWith(monthStr) && w.author?.emailAddress === state.auth.email) {
+              const day = parseInt(w.started.slice(8, 10));
+              state.loggedDays.add(day);
+            }
+          });
+        } catch(e) { /* ignore single issue */ }
+      });
+      await Promise.all(checks);
     } catch(e) { /* ignore */ }
 
-    if (existingCount > 0) {
-      const proceed = confirm(`⚠ Pozor: v Clockwork už existují záznamy pro tento měsíc (nalezeno ${existingCount} worklogů na ${state.issues[0]?.key}). Chceš pokračovat a přidat další?`);
+    if (state.loggedDays.size > 0) {
+      const daysList = [...state.loggedDays].sort((a,b)=>a-b).join(', ');
+      const proceed = confirm(`⚠ V Clockwork už máš worklogy za dny: ${daysList}.\n\nTyto dny budou automaticky vynechány z návrhu. Pokračovat?`);
       if (!proceed) { $('fetch-spinner').classList.add('hidden'); $('btn-fetch').disabled = false; return; }
     }
 
@@ -727,7 +763,7 @@ $('btn-fetch').addEventListener('click', async () => {
           state.issues.forEach(i => { issueMap[i.key] = i.summary; });
           if (ctx.entries && ctx.entries.length) {
             state.entries = ctx.entries
-              .filter(e => days.includes(e.day))
+              .filter(e => days.includes(e.day) && !state.loggedDays.has(e.day))
               .map(e => ({
                 day: e.day,
                 key: e.key,
@@ -743,7 +779,8 @@ $('btn-fetch').addEventListener('click', async () => {
           state.entries = assignTasks(state.issues, days, state.extraHours, stdH);
         }
       } else {
-        state.entries = assignTasks(state.issues, days, state.extraHours, stdH);
+        const freeDays = days.filter(d => !state.loggedDays.has(d));
+        state.entries = assignTasks(state.issues, freeDays, state.extraHours, stdH);
       }
       setStep(3);
     }
